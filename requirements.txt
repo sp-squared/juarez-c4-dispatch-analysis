@@ -1,0 +1,15 @@
+# --- DATA INGESTION & HIGH-SPEED PROCESSING ENGINE ---
+polars>=1.0.0
+pyarrow>=14.0.0
+
+# --- GEOSPATIAL VECTOR INTEGRATION & GEOMETRY ---
+geopandas>=0.14.0
+shapely>=2.0.0
+pyproj>=3.6.0
+
+# --- SPATIAL CARTOCOGRAPHY & BASEMAP STITCHING ---
+contextily>=1.4.0
+matplotlib>=3.8.0
+
+# --- REMOTE STORAGE & REGISTRY COUPLING ---
+huggingface_hub>=0.20.0

@@ -1,0 +1,60 @@
+# ====================================================================
+# PROJECT-SPECIFIC SPATIAL & INFRASTRUCTURE EXCLUSIONS
+# ====================================================================
+# Block massive raw source files from being tracked or pushed
+*.parquet
+*.geoparquet
+*.geojson
+*.json
+*.csv
+
+# Block locally generated evaluation maps and high-res image outputs
+*.png
+*.jpg
+*.jpeg
+*.pdf
+
+# Cache folders from downloading platforms
+.cache/
+snapshots/
+
+# ====================================================================
+# PYTHON DEVELOPMENT & ENVIRONMENT EXCLUSIONS
+# ====================================================================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local virtual environments (standard names)
+venv/
+.venv/
+env/
+.env
+bin/
+include/
+lib/
+share/
+
+# Jupyter Notebook checkpoints and execution state
+.ipynb_checkpoints/
+.virtual_documents/
+
+# ====================================================================
+# SYSTEM & IDE CONFIGURATIONS
+# ====================================================================
+# Windows system file locks
+Thumbs.db
+desktop.ini
+
+# macOS metadata tracking
+.DS_Store
+
+# IDE configurations (VS Code, PyCharm, etc.)
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
