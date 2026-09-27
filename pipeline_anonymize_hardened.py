@@ -62,7 +62,9 @@ list, not assumed)
 DIRECT IDENTIFIERS — hard-dropped, never whitelisted, never
 recoverable from output no matter what other options are passed:
     TELÉFONO, NOMBRE_DEL_RELATOR, USUARIO, FOLIO, FOLIO_2DA_LLAMADA,
-    REGISTRO, TARJETA_DE_SEGURIDAD
+    REGISTRO, TARJETA_DE_SEGURIDAD, CÓDIGO (confirmed: internal
+    case/dispatch reference number, same re-identification role as
+    FOLIO)
 
 LOCATION QUASI-IDENTIFIERS (free text / fine address detail) —
 hard-dropped:
@@ -147,6 +149,19 @@ PUBLISHABLE_SECTOR_COL = "AEI_SECTOR"
 DIRECT_IDENTIFIERS = [
     "TELÉFONO", "NOMBRE_DEL_RELATOR", "USUARIO", "FOLIO",
     "FOLIO_2DA_LLAMADA", "REGISTRO", "TARJETA_DE_SEGURIDAD",
+    # Confirmed: an internal case/dispatch reference number, same
+    # role as FOLIO — lets a specific record be looked up or re-linked
+    # even with every other identifier stripped. Originally left in
+    # RETAINED_BASE_COLS on a guess; moved here once confirmed.
+    "CÓDIGO",
+]
+
+# GÉNERO_RELATOR added: a personal attribute of the caller/reporter.
+# Not a direct identifier on its own, but it's PII about a specific
+# person with no analytical role in incident-pattern research, so it
+# is dropped alongside the other identifiers rather than retained.
+PERSONAL_ATTRIBUTE_COLS = [
+    "GÉNERO_RELATOR",
 ]
 
 LOCATION_QUASI_IDENTIFIERS = [
@@ -154,6 +169,25 @@ LOCATION_QUASI_IDENTIFIERS = [
     "NÚMERO_EXTERIOR", "NÚMERO_INTERIOR", "REFERENCIA", "LOCALIDAD",
     "CRUCE_FRONTERIZO", "KILÓMETRO", "ORIGEN", "DESTINO",
     "HOSPITAL_DESTINO", "INSTITUCIÓN_RECEPCIÓN",
+]
+
+# Raw point geometry. Confirmed against a live schema dump:
+#   Shape    -> float64   (not a geometry type; likely a leftover
+#                          scalar — shape length/area — from the
+#                          Esri export, not itself a coordinate pair,
+#                          but dropped anyway since it serves no
+#                          purpose without the geometry it describes
+#                          and it isn't a vetted, safe field)
+#   geometry -> unknown   (loads with a "geoarrow.wkb is not
+#                          registered" warning — this IS full-
+#                          precision point geometry in a WKB
+#                          extension type Polars doesn't recognize
+#                          natively. COORDENADA_X/Y get gridded by
+#                          generalize_geometry(), but this raw
+#                          geometry column bypasses that entirely if
+#                          it isn't also dropped here.)
+RAW_GEOMETRY_COLS = [
+    "Shape", "geometry",
 ]
 
 FINE_TIMESTAMP_COLS = [
@@ -186,13 +220,28 @@ OTHER_OPERATIONAL_COLS = [
     "CORPORACIÓN", "CODIGO_NARANJA", "ESTATUS", "PRIORIDAD",
     "SIMULACRO", "AGREGO_INFORMACIÓN", "CLASIFICACIÓN_LLAMADA_IMPROCEDE",
     "TOTAL_2DA_LLAMADA",
+    # Confirmed via live schema dump — same family as the *_DISTRITO/
+    # *_SECTOR fields: dispatch subcenter and "corrected"/canonical
+    # district-quadrant-sector fields. Treated as sensitive-by-default
+    # for the same reason those are (see module docstring).
+    "SUBCENTRO", "DistritoCorrecto", "CuadranteCorrecto",
+    "SectorCorrecto", "Ubicacion",
 ]
 
 COORD_COLS = ["COORDENADA_X", "COORDENADA_Y"]
 
 # Columns that are safe, coarse, and useful to keep as-is.
+#
+# TIPO: kept here as a working assumption, NOT a confirmed one.
+# Structurally it sits beside SUBTIPO/INCIDENTE and looks like a
+# parent incident-type category (large_string), the same kind of
+# thing as INCIDENTE, not an identifier. Confirm what it actually
+# represents before trusting this classification. (CÓDIGO, which sat
+# next to it, was checked and turned out to be an internal
+# case/dispatch reference number — see DIRECT_IDENTIFIERS above —
+# so the same kind of surprise is possible here too.)
 RETAINED_BASE_COLS = [
-    "INCIDENTE", "SUBTIPO", "Precategoria_Incidente",
+    "INCIDENTE", "SUBTIPO", "TIPO", "Precategoria_Incidente",
     "Subcategoria_Incidente", "ALTO_IMPACTO", "MUNICIPIO",
     "DiaSemana", "DiaSemanaNum", "PeriodoDia", "HoraDiaEntero",
     "Dia", "Mes", "Ano",
@@ -235,7 +284,9 @@ def drop_identifiers_and_operational_fields(lazy_df: pl.LazyFrame) -> pl.LazyFra
 
     all_drop_candidates = (
         DIRECT_IDENTIFIERS
+        + PERSONAL_ATTRIBUTE_COLS
         + LOCATION_QUASI_IDENTIFIERS
+        + RAW_GEOMETRY_COLS
         + FINE_TIMESTAMP_COLS
         + agency_drop
         + OTHER_OPERATIONAL_COLS
@@ -244,7 +295,9 @@ def drop_identifiers_and_operational_fields(lazy_df: pl.LazyFrame) -> pl.LazyFra
 
     print(f"Hard-dropping {len(present_to_drop)} identifying/operational columns:")
     print(f"  direct identifiers:      {[c for c in DIRECT_IDENTIFIERS if c in schema_cols]}")
+    print(f"  personal attributes:     {[c for c in PERSONAL_ATTRIBUTE_COLS if c in schema_cols]}")
     print(f"  location quasi-ids:      {[c for c in LOCATION_QUASI_IDENTIFIERS if c in schema_cols]}")
+    print(f"  raw geometry:            {[c for c in RAW_GEOMETRY_COLS if c in schema_cols]}")
     print(f"  fine timestamps:         {len([c for c in FINE_TIMESTAMP_COLS if c in schema_cols])} fields")
     print(f"  other-agency dist/sector:{agency_drop}")
     print(f"  other operational:       {[c for c in OTHER_OPERATIONAL_COLS if c in schema_cols]}")
@@ -275,10 +328,14 @@ def drop_identifiers_and_operational_fields(lazy_df: pl.LazyFrame) -> pl.LazyFra
 def generalize_geometry(lazy_df: pl.LazyFrame, grid_size: int) -> pl.LazyFrame:
     """
     Snap COORDENADA_X/COORDENADA_Y to a coarse grid and drop the exact
-    originals. NOTE: confirm the source SRS/units (see module docstring)
-    before trusting `grid_size` as meters — if these integers are in a
-    geographic CRS this needs to be reworked as a degree-fraction grid,
-    not a flat meter offset.
+    originals. Confirmed via live schema dump: both are float64 (the
+    original module docstring assumed esriFieldTypeInteger from the
+    static field list — the live parquet actually stores them as
+    doubles, which doesn't change the grid math but did need
+    correcting here). NOTE: confirm the source SRS/units before
+    trusting `grid_size` as meters — if these floats are in a
+    geographic CRS (degrees) this needs to be reworked as a
+    degree-fraction grid, not a flat meter offset.
     """
     schema_cols = lazy_df.collect_schema().names()
     if "COORDENADA_X" not in schema_cols or "COORDENADA_Y" not in schema_cols:
