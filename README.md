@@ -11,11 +11,14 @@ To maintain strict adherence to data minimization principles, **all structural p
 
 ## 📁 Repository Structure
 ```text
-├── .gitignore                   # Prevents local data caches from public tracking
-├── README.md                    # Core project documentation and logistics blueprint
-├── requirements.txt             # Locked dependency matrix (Polars, GeoPandas, etc.)
-├── pipeline_anonymize.py        # High-speed data-cleaning streaming script
-└── verify_anonymization.py      # Independent compliance and schema audit script
+juarez-c4-dispatch-analysis/
+├── .gitignore                       # Excludes data exports, caches, environments, and local artifacts
+├── README.md                        # Project overview, setup, methodology, and usage documentation
+├── pipeline_anonymize.py            # Baseline Polars streaming and column-whitelist pipeline
+├── pipeline_anonymize_hardened.py   # Hardened pipeline with quasi-identifier and spatial safeguards
+├── requirements.txt                 # Python data, geospatial, visualization, and Hub dependencies
+├── test_env.py                      # Validates loading SOURCE_HF_REPO from the local environment
+└── verify_anonymization.py          # Audits the output schema and samples values for leakage
 ```
 
 ---
