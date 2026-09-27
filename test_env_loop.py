@@ -8,7 +8,7 @@ load_dotenv()
 repo_id = os.environ.get("SOURCE_HF_REPO")
 
 print("--- Environmental Variable Sanity Test ---")
-if repo_id == "sp-squared/llamadas_all":
+if repo_id == "https://huggingface.co/":
     print("✅ SUCCESS: The environment engine read your .env file cleanly.")
     print(f"🔒 Target Identifier mapped to: '{repo_id}'")
 else:
